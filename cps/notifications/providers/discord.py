@@ -4,20 +4,58 @@ from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
 
+
 class DISCORD:
     """
     Discord Notifications provider
     """
+    
+    KEY = "discord" 
+    
+    CONFIG_SCHEMA = [
+        {
+            "key": "webhook",
+            "label": "Discord Webhook URL",
+            "input_type": "url",
+            "description": "Your Discord incoming webhook URL (we add ?wait=true automatically).",
+            "required": True,
+            "placeholder": "https://discord.com/api/webhooks/…",
+        },
+        {
+            "key": "username",
+            "label": "Discord Username",
+            "input_type": "text",
+            "description": "Optional override username (leave blank for webhook default).",
+            "placeholder": "Optional",
+        },
+        {
+            "key": "avatar",
+            "label": "Discord Avatar URL",
+            "input_type": "url",
+            "description": "Optional avatar image URL (leave blank for webhook default).",
+            "placeholder": "https://…",
+        },
+        {
+            "key": "color",
+            "label": "Discord Color (hex)",
+            "input_type": "text",
+            "description": "Hex color (e.g. #5865F2). (Not used in plain messages.)",
+            "placeholder": "#5865F2",
+        },
+        {
+            "key": "tts",
+            "label": "Text-to-speech (if supported)",
+            "input_type": "checkbox",
+            "description": "Send the notification using text-to-speech.",
+        },
+    ]
 
-    NAME = "Discord"
-
-    # Keep keys aligned with DB + UI prefill
+    # ---------- Default values for the config keys above ----------
     _DEFAULT_CONFIG = {
         "webhook": "",
         "username": "",
         "avatar": "",
         "color": "",
-        "incl_subject": 0,
         "tts": 0,
     }
 
@@ -26,56 +64,38 @@ class DISCORD:
         if config:
             cfg.update(config)
         self.config = cfg
+        
 
-    # ---------- UI options for the modal ----------
+    def _field_name(self, key: str) -> str:
+        """Builds provider-prefixed field names like 'discord_webhook' generically."""
+        prefix = getattr(self, "KEY", None) or getattr(self, "NAME", None) or self.__class__.__name__
+        return f"{prefix.lower()}_{key}"
+
+
+    # ---------- UI options for the modal (derived from CONFIG_SCHEMA) ----------
     def _return_config_options(self):
         """
         Returns field descriptors consumed by the template.
-        IMPORTANT: names must be discord_<key> so the JS prefill works.
+        IMPORTANT: names must be <provider>_<key> so the JS prefill works.
         """
-        return [
-            {
-                "label": "Discord Webhook URL",
-                "value": self.config.get("webhook", ""),
-                "name": "discord_webhook",
-                "description": "Your Discord incoming webhook URL (we add ?wait=true automatically).",
-                "input_type": "text",
-            },
-            {
-                "label": "Discord Username",
-                "value": self.config.get("username", ""),
-                "name": "discord_username",
-                "description": "Optional override username (leave blank for webhook default).",
-                "input_type": "text",
-            },
-            {
-                "label": "Discord Avatar URL",
-                "value": self.config.get("avatar", ""),
-                "name": "discord_avatar",
-                "description": "Optional avatar image URL (leave blank for webhook default).",
-                "input_type": "text",
-            },
-            {
-                "label": "Discord Color",
-                "value": self.config.get("color", "") or "#5865F2",
-                "name": "discord_color",
-                "description": "Hex color (e.g. #5865F2). (Not used in plain messages.)",
-                "input_type": "text",
-            },
-            {
-                "label": "TTS",
-                "value": 1 if self.config.get("tts") else 0,
-                "name": "discord_tts",
-                "description": "Send the notification using text-to-speech.",
-                "input_type": "checkbox",
-            },
-        ]
+        opts = []
+        for entry in self.CONFIG_SCHEMA:
+            key = entry["key"]
+            opts.append(
+                {
+                    "label": entry.get("label", key),
+                    "value": self.config.get(key, self._DEFAULT_CONFIG.get(key, "")),
+                    "name": self._field_name(key),  # <-- generic
+                    "description": entry.get("description", ""),
+                    "input_type": (entry.get("input_type") or "text"),
+                    "required": bool(entry.get("required", False)),
+                    "placeholder": entry.get("placeholder", ""),
+                }
+            )
+        return opts
 
-    # ---------- Sending ----------
+
     def _with_wait_true(self, webhook: str) -> str:
-        """
-        Ensure the webhook URL includes wait=true (to mirror your working curl).
-        """
         try:
             parts = urlsplit(webhook)
             q = dict(parse_qsl(parts.query, keep_blank_values=True))
@@ -89,16 +109,12 @@ class DISCORD:
             return f"{webhook}{sep}wait=true"
 
     def agent_notify(self, subject: str = "", body: str = "", action: str = "", **kwargs):
-        """
-        Send a notification to Discord via webhook using the same shape as your curl test.
-        """
         webhook = (self.config.get("webhook") or "").strip()
         if not webhook:
             return {"ok": False, "error": "missing webhook"}
 
         webhook = self._with_wait_true(webhook)
 
-        # Build plain text payload. (Embeds/color can be added later if you want.)
         text = (
             f"{subject}\r\n{body}"
             if self.config.get("incl_subject")
@@ -115,7 +131,6 @@ class DISCORD:
 
         data = json.dumps(payload).encode("utf-8")
 
-        # Mimic curl request that worked for you
         headers = {
             "Content-Type": "application/json",
             "Accept": "*/*",
@@ -135,7 +150,6 @@ class DISCORD:
                     resp_text = ""
                 return {"ok": ok, "status": status, "response": resp_text}
         except HTTPError as e:
-            # Surface what we actually attempted for fast debugging
             err = {"ok": False, "status": e.code, "error": f"HTTPError: {e}", "sent": payload}
             return err
         except URLError as e:

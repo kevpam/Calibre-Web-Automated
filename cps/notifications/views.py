@@ -257,15 +257,18 @@ def notifications_page():
 
 @notifications_bp.route("/<provider>/modal", methods=["GET"])
 def notifications_provider_modal(provider: str):
-    if not get_notifier(provider):
+    klass = get_notifier(provider)
+    if not klass:
         abort(404, description=f"Unknown provider '{provider}'")
-    cfg, options = _options_from_class(provider)  # don't shadow gettext _
-    return render_title_template(
-        "notifications/modal.html",
-        title=_("%(p)s Settings", p=get_notifier(provider).NAME),
-        provider=provider,
-        options=options,
-    )
+    cfg, options = _options_from_class(provider)
+
+    # Allow providers without NAME; fall back to KEY, class name, or the URL segment
+    display = getattr(klass, "NAME", None) or getattr(klass, "KEY", None) or getattr(klass, "__name__", None) or provider
+    title = _("%(p)s Settings", p=display)
+
+    return render_title_template("notifications/modal.html",
+                                 title=title, provider=provider, options=options)
+
 
 
 @notifications_bp.route("/save", methods=["POST"])
