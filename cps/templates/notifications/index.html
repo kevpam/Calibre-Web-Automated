@@ -43,6 +43,13 @@
         }
       }
 
+      // Seed triggers checkboxes from agent.enabled_triggers
+      if (agent && Array.isArray(agent.enabled_triggers)) {
+        body.querySelectorAll(`[name="${provider}_trigger"]`).forEach(cb => {
+          cb.checked = agent.enabled_triggers.includes(cb.value);
+        });
+      }
+
       modal.dataset.provider = provider;
       modal.dataset.agentId  = agent.id || '';
     } catch (e) {

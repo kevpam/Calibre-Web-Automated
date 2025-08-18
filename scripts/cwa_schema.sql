@@ -48,3 +48,15 @@ CREATE TABLE IF NOT EXISTS cwa_settings(
     auto_backup_epub_fixes SMALLINT DEFAULT 1 NOT NULL,
     enable_mobile_blur SMALLINT DEFAULT 1 NOT NULL
 );
+CREATE TABLE IF NOT EXISTS notification_agents(
+    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    type TEXT NOT NULL,
+    name TEXT NOT NULL,
+    webhook TEXT,
+    username TEXT,
+    avatar TEXT,
+    color TEXT,
+    incl_subject INTEGER DEFAULT 0 NOT NULL,
+    tts INTEGER DEFAULT 0 NOT NULL,
+    enabled_triggers TEXT DEFAULT ''
+);

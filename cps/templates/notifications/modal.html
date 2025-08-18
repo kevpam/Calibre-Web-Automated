@@ -1,56 +1,59 @@
-{% macro render_field(opt, provider) -%}
-  {% set it=(opt.get('input_type') or 'text')|lower %}
-  {% set name=opt.get('name') %}{% set label=opt.get('label') or name %}
-  {% set desc=opt.get('description') %}{% set val=opt.get('value') %}
-  <div class="form-group" style="margin-bottom:12px;">
-  {% if it in ['text','url','number','password','color','email'] %}
-    <label for="{{ name }}">{{ label }}</label>
-    <input type="{{ it }}" id="{{ name }}" name="{{ name }}" value="{{ val if val is not none else '' }}" class="form-control" style="width:100%;padding:8px;border:1px solid #333;border-radius:6px;background:transparent;color:inherit;">
-    {% if desc %}<p class="cwa-settings-tooltip" style="opacity:.75;margin:.25rem 0 0;">{{ desc }}</p>{% endif %}
-  {% elif it == 'textarea' %}
-    <label for="{{ name }}">{{ label }}</label>
-    <textarea id="{{ name }}" name="{{ name }}" rows="{{ opt.get('rows',3) }}" class="form-control" style="width:100%;padding:8px;border:1px solid #333;border-radius:6px;background:transparent;color:inherit;">{{ val if val is not none else '' }}</textarea>
-    {% if desc %}<p class="cwa-settings-tooltip" style="opacity:.75;margin:.25rem 0 0;">{{ desc }}</p>{% endif %}
-  {% elif it == 'select' %}
-    <label for="{{ name }}">{{ label }}</label>
-    <select id="{{ name }}" name="{{ name }}" class="form-control" style="width:100%;padding:8px;border:1px solid #333;border-radius:6px;background:transparent;color:inherit;">
-      {% for c in opt.get('choices', []) %}
-        {% if c is string %}<option value="{{ c }}" {% if c==val %}selected{% endif %}>{{ c }}</option>
-        {% else %}<option value="{{ c[0] }}" {% if c[0]==val %}selected{% endif %}>{{ c[1] }}</option>{% endif %}
-      {% endfor %}
-    </select>
-    {% if desc %}<p class="cwa-settings-tooltip" style="opacity:.75;margin:.25rem 0 0;">{{ desc }}</p>{% endif %}
-  {% elif it == 'checkbox' %}
-    <label style="display:flex;align-items:center;gap:8px;">
-      <input type="checkbox" id="{{ name }}" name="{{ name }}" {% if val in (1,True,'1','true','on','yes') %}checked{% endif %}>
-      <span style="font-weight:600;">{{ label }}</span>
-    </label>
-    {% if desc %}<p class="cwa-settings-tooltip" style="opacity:.75;margin:.25rem 0 0 26px;">{{ desc }}</p>{% endif %}
-  {% else %}
-    <label for="{{ name }}">{{ label }}</label>
-    <input type="text" id="{{ name }}" name="{{ name }}" value="{{ val if val is not none else '' }}" class="form-control" style="width:100%;padding:8px;border:1px solid #333;border-radius:6px;background:transparent;color:inherit;">
-    {% if desc %}<p class="cwa-settings-tooltip" style="opacity:.75;margin:.25rem 0 0;">{{ desc }}</p>{% endif %}
-  {% endif %}
+{# Rendered into the existing Bootstrap modal-body. No wrapper modal markup. #}
+<form onsubmit="event.preventDefault(); saveAgent();">
+  <div class="form-group">
+    <label for="{{ provider }}_name">{{ _('Display name') }}</label>
+    <input id="{{ provider }}_name" name="{{ provider }}_name" type="text" class="form-control" placeholder="{{ _('Optional') }}">
   </div>
-{%- endmacro %}
 
-<input type="hidden" name="{{ provider }}_id" value="">
-{% for opt in options %}{{ render_field(opt, provider) }}{% endfor %}
+  <div class="form-group">
+    <label for="{{ provider }}_webhook">{{ _('Webhook URL') }}</label>
+    <input id="{{ provider }}_webhook" name="{{ provider }}_webhook" type="url" class="form-control" required>
+    <p class="help-block">
+      {{ _('Paste the %(prov)s webhook URL here.', prov=(provider|capitalize)) }}
+    </p>
+  </div>
 
-<hr class="settings-divider" style="border-color:#333;">
-<h5 class="settings-section-header" style="margin-top:.8rem;">{{ _('Triggers') }}</h5>
-<div>
-  {% for t in notification_triggers %}
-    <label style="display:block; margin-bottom:.4rem;">
-      <input type="checkbox" name="{{ provider }}_trigger" value="{{ t.key }}" style="accent-color: var(--color-secondary);">
-      <span style="padding-left:.4rem;">{{ t.label }}</span>
+  <div class="form-group">
+    <label for="{{ provider }}_username">{{ _('Username (override)') }}</label>
+    <input id="{{ provider }}_username" name="{{ provider }}_username" type="text" class="form-control">
+  </div>
+
+  <div class="form-group">
+    <label for="{{ provider }}_avatar">{{ _('Avatar URL') }}</label>
+    <input id="{{ provider }}_avatar" name="{{ provider }}_avatar" type="url" class="form-control" placeholder="https://...">
+  </div>
+
+  <div class="form-group">
+    <label for="{{ provider }}_color">{{ _('Accent color (hex)') }}</label>
+    <input id="{{ provider }}_color" name="{{ provider }}_color" type="text" class="form-control" placeholder="#5865F2">
+  </div>
+
+  <div class="checkbox">
+    <label>
+      <input type="checkbox" name="{{ provider }}_incl_subject" value="1">
+      {{ _('Include subject/title') }}
     </label>
-  {% endfor %}
-</div>
+  </div>
 
-<hr class="settings-divider" style="border-color:#333;">
-<div>
-  <label class="control-label">{{ _('Test Notification') }}</label>
-  <button type="button" class="btn btn-default" style="margin-left:.6rem;" onclick="testAgent()">{{ _('Send Test') }}</button>
-  <p style="opacity:.75;margin-top:.4rem;">{{ _("Note: tests use whichever webhook/endpoint you set above.") }}</p>
-</div>
+  <div class="checkbox">
+    <label>
+      <input type="checkbox" name="{{ provider }}_tts" value="1">
+      {{ _('Text-to-speech (if supported)') }}
+    </label>
+  </div>
+
+  <hr>
+
+  <div class="form-group">
+    <label>{{ _('Enabled triggers') }}</label>
+    <div>
+      {% for t in notification_triggers %}
+        <div class="checkbox">
+          <label>
+            <input type="checkbox" name="{{ provider }}_trigger" value="{{ t.key }}"> {{ t.label }}
+          </label>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+</form>

@@ -22,7 +22,7 @@ class CWA_DB:
         self.con, self.cur = self.connect_to_db() # type: ignore
 
         self.schema_path = "/app/calibre-web-automated/scripts/cwa_schema.sql"
-        self.stats_tables = ["cwa_enforcement", "cwa_import", "cwa_conversions", "epub_fixes"]
+        self.stats_tables = ["cwa_enforcement", "cwa_import", "cwa_conversions", "epub_fixes", "notification_agents"]
         self.tables, self.schema = self.make_tables()
 
         self.cwa_default_settings = self.get_cwa_default_settings()
@@ -389,6 +389,114 @@ class CWA_DB:
                 print(f"[cwa-db] ERROR - The following error occurred when fetching stat totals:\n{e}")
 
         return totals
+    
+    # ===== Notifications (CWA-only, stored in cwa.db) =====
+
+    def _ensure_notifications_table(self):
+        self.cur.execute("""
+        CREATE TABLE IF NOT EXISTS notification_agents(
+            id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+            type TEXT NOT NULL,
+            name TEXT NOT NULL,
+            webhook TEXT,
+            username TEXT,
+            avatar TEXT,
+            color TEXT,
+            incl_subject INTEGER DEFAULT 0 NOT NULL,
+            tts INTEGER DEFAULT 0 NOT NULL,
+            enabled_triggers TEXT DEFAULT ''
+        );
+        """)
+        self.cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_notification_agents_type
+          ON notification_agents(type);
+        """)
+        self.con.commit()
+
+    def notification_list(self) -> list[dict]:
+        """Return all agents for UI consumption."""
+        self._ensure_notifications_table()
+        rows = self.cur.execute(
+            """SELECT id,type,name,webhook,username,avatar,color,incl_subject,tts,enabled_triggers
+               FROM notification_agents
+               ORDER BY id ASC"""
+        ).fetchall()
+        agents = []
+        for r in rows:
+            triggers = [t for t in (r[9] or "").split(",") if t]
+            agents.append({
+                "id": r[0],
+                "type": r[1],
+                "name": r[2],
+                "webhook": r[3],
+                "username": r[4],
+                "avatar": r[5],
+                "color": r[6],
+                "incl_subject": int(r[7]),
+                "tts": int(r[8]),
+                "enabled_triggers": triggers,
+            })
+        return agents
+
+    def notification_save_agent(self, provider: str, payload: dict) -> int:
+        """
+        Generic save/update.
+        payload keys expected: webhook, username, avatar, color, incl_subject, tts, enabled_triggers (list), id? (for update)
+        """
+        self._ensure_notifications_table()
+        enabled_csv = ",".join(payload.get("enabled_triggers", []))
+        # choose a display name (fall back to provider title)
+        name = payload.get("name") or payload.get("username") or provider.title()
+
+        if payload.get("id"):
+            self.cur.execute(
+                """UPDATE notification_agents
+                   SET type=?, name=?, webhook=?, username=?, avatar=?, color=?, incl_subject=?, tts=?, enabled_triggers=?
+                 WHERE id=?""",
+                (
+                    provider,
+                    name,
+                    payload.get("webhook") or "",
+                    payload.get("username") or "",
+                    payload.get("avatar") or "",
+                    payload.get("color") or "",
+                    int(payload.get("incl_subject") or 0),
+                    int(payload.get("tts") or 0),
+                    enabled_csv,
+                    int(payload["id"]),
+                ),
+            )
+            self.con.commit()
+            return int(payload["id"])
+        else:
+            self.cur.execute(
+                """INSERT INTO notification_agents
+                   (type,name,webhook,username,avatar,color,incl_subject,tts,enabled_triggers)
+                   VALUES (?,?,?,?,?,?,?,?,?)""",
+                (
+                    provider,
+                    name,
+                    payload.get("webhook") or "",
+                    payload.get("username") or "",
+                    payload.get("avatar") or "",
+                    payload.get("color") or "",
+                    int(payload.get("incl_subject") or 0),
+                    int(payload.get("tts") or 0),
+                    enabled_csv,
+                ),
+            )
+            self.con.commit()
+            return int(self.cur.lastrowid)
+
+    def notification_save_discord(self, payload: dict) -> int:
+        """Provider-specific wrapper (lets the view prefer a specific saver)."""
+        return self.notification_save_agent("discord", payload)
+
+    def notification_delete(self, agent_id: int) -> None:
+        self._ensure_notifications_table()
+        self.cur.execute("DELETE FROM notification_agents WHERE id=?", (int(agent_id),))
+        self.con.commit()
+
 
 def main():
     db = CWA_DB()
