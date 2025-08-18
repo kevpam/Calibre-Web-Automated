@@ -86,22 +86,49 @@
 
   async function testAgent(){
     const modal = document.getElementById('modal-config');
-    const provider = modal.dataset.provider;
+    const provider = modal.dataset.provider;           // e.g. "discord"
     const body = modal.querySelector('.modal-body');
 
-    const webhookEl = body.querySelector(`[name="${provider}_hook"], [name="${provider}_webhook"]`);
-    const webhook = webhookEl ? webhookEl.value : null;
+    // Read current form values from the provider modal
+    const get = (name) => {
+      const el = body.querySelector(`[name="${provider}_${name}"]`);
+      if (!el) return null;
+      if (el.type === 'checkbox') return el.checked ? 1 : 0;
+      return (el.value || '').trim();
+    };
+
+    const webhook = get('webhook');
     if (!webhook) { alert('Webhook/endpoint required'); return; }
 
-    const res = await fetch("{{ url_for('notifications.notifications_test') }}", {
-      method: 'POST',
-      headers: { 'Content-Type':'application/json' },
-      body: JSON.stringify({ type:provider, webhook })
-    });
-    const j = await res.json();
-    if (!res.ok || !j.ok) { alert(j.error || 'Test failed'); return; }
-    alert('Test sent!');
+    // Build the same shape we save, so server can pass it straight to the provider
+    const payload = {
+      type: provider,
+      webhook: webhook,
+      name: get('name'),
+      username: get('username'),
+      avatar: get('avatar'),
+      color: get('color'),
+      incl_subject: get('incl_subject') ? 1 : 0,
+      tts: get('tts') ? 1 : 0
+    };
+
+    try {
+      const res = await fetch("{{ url_for('notifications.notifications_test') }}", {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(payload)
+      });
+      const j = await res.json();
+      if (!res.ok || !j.ok) {
+        alert(j.error || `Test failed (status ${j.status||res.status})`);
+        return;
+      }
+      alert('Test sent!');
+    } catch (e) {
+      alert(`Test failed: ${e}`);
+    }
   }
+  window.testAgent = testAgent;
 
   async function deleteAgent(id){
     if (!confirm('Delete this agent?')) return;

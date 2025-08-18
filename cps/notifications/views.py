@@ -294,15 +294,42 @@ def notifications_save():
 @notifications_bp.route("/test", methods=["POST"])
 @csrf.exempt
 def notifications_test():
+    from cps.notifications.registry import get_notifier
+
     data = request.get_json(force=True, silent=False) or {}
     provider = (data.get("type") or data.get("provider") or "").lower()
-    trigger = data.get("trigger") or ""
-    if not provider or not get_notifier(provider):
+    klass = get_notifier(provider)
+    if not provider or not klass:
         return jsonify(ok=False, error="unsupported or missing provider"), 400
-    if trigger and trigger not in TRIGGER_KEYS:
-        return jsonify(ok=False, error=f"invalid trigger: {trigger}"), 400
-    # Stub success – wire real webhook send later if desired
-    return jsonify(ok=True, provider=provider, trigger=trigger or None)
+
+    webhook = (data.get("webhook") or "").strip()
+    if not webhook:
+        return jsonify(ok=False, error="missing webhook"), 400
+
+    # Build the same config shape as saved agents, so the provider can use it
+    cfg = {
+        "webhook": webhook,
+        "name": (data.get("name") or "").strip(),
+        "username": (data.get("username") or "").strip(),
+        "avatar": (data.get("avatar") or "").strip(),
+        "color": (data.get("color") or "").strip(),
+        "incl_subject": 1 if str(data.get("incl_subject")).lower() in ("1","true","on","yes") else 0,
+        "tts": 1 if str(data.get("tts")).lower() in ("1","true","on","yes") else 0,
+    }
+
+    obj = klass(cfg)
+    # Keep body short and clear like your curl test
+    res = obj.agent_notify(subject="CWA Test", body="This is a test from Calibre-Web Automated.")
+    # Include what we tried to send for debugging
+    if not res.get("ok"):
+        res.setdefault("sent", {
+            "content": ("CWA Test\r\nThis is a test from Calibre-Web Automated.") if cfg["incl_subject"] else "This is a test from Calibre-Web Automated.",
+            "username": cfg.get("username") or None,
+            "avatar_url": cfg.get("avatar") or None,
+            "tts": bool(cfg.get("tts")),
+        })
+    return jsonify(res), (200 if res.get("ok") else int(res.get("status") or 500))
+
 
 
 @notifications_bp.route("/delete", methods=["POST"])

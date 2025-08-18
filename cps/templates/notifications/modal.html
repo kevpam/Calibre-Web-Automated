@@ -1,44 +1,41 @@
 {# Rendered into the existing Bootstrap modal-body. No wrapper modal markup. #}
 <form onsubmit="event.preventDefault(); saveAgent();">
   <div class="form-group">
-    <label for="{{ provider }}_name">{{ _('Display name') }}</label>
-    <input id="{{ provider }}_name" name="{{ provider }}_name" type="text" class="form-control" placeholder="{{ _('Optional') }}">
-  </div>
-
-  <div class="form-group">
     <label for="{{ provider }}_webhook">{{ _('Webhook URL') }}</label>
-    <input id="{{ provider }}_webhook" name="{{ provider }}_webhook" type="url" class="form-control" required>
+    <input id="{{ provider }}_webhook" name="{{ provider }}_webhook" type="url" class="form-control" placeholder="{{ _('Required') }}" required>
     <p class="help-block">
-      {{ _('Paste the %(prov)s webhook URL here.', prov=(provider|capitalize)) }}
+      {{ _('Your %(prov)s incoming webhook URL.', prov=(provider|capitalize)) }}
     </p>
   </div>
 
   <div class="form-group">
-    <label for="{{ provider }}_username">{{ _('Username (override)') }}</label>
-    <input id="{{ provider }}_username" name="{{ provider }}_username" type="text" class="form-control">
+    <label for="{{ provider }}_username">{{ _('Discord Username') }}</label>
+    <input id="{{ provider }}_username" name="{{ provider }}_username" type="text" class="form-control" placeholder="{{ _('Optional') }}">
+    <p class="help-block">
+      {{ _('The %(prov)s username which will be used. Leave blank for webhook default.', prov=(provider|capitalize)) }}
+    </p>
   </div>
 
   <div class="form-group">
-    <label for="{{ provider }}_avatar">{{ _('Avatar URL') }}</label>
-    <input id="{{ provider }}_avatar" name="{{ provider }}_avatar" type="url" class="form-control" placeholder="https://...">
+    <label for="{{ provider }}_avatar">{{ _('Discord Avatar URL') }}</label>
+    <input id="{{ provider }}_avatar" name="{{ provider }}_avatar" type="url" class="form-control" placeholder="{{ _('Optional') }}">
+     <p class="help-block">
+      {{ _('The image url for the avatar which will be used. Leave blank for webhook default.', prov=(provider|capitalize)) }}
+    </p>
   </div>
 
   <div class="form-group">
-    <label for="{{ provider }}_color">{{ _('Accent color (hex)') }}</label>
-    <input id="{{ provider }}_color" name="{{ provider }}_color" type="text" class="form-control" placeholder="#5865F2">
-  </div>
-
-  <div class="checkbox">
-    <label>
-      <input type="checkbox" name="{{ provider }}_incl_subject" value="1">
-      {{ _('Include subject/title') }}
-    </label>
+    <label for="{{ provider }}_color">{{ _('Discord Color') }}</label>
+    <input id="{{ provider }}_color" name="{{ provider }}_color" type="text" class="form-control" placeholder="{{ _('Optional') }}">
+    <p class="help-block">
+      {{ _('The hex color value (starting with \'#\') for the border along the left side of the attachment. Leave blank for webhook default.', prov=(provider|capitalize)) }}
+    </p>
   </div>
 
   <div class="checkbox">
     <label>
       <input type="checkbox" name="{{ provider }}_tts" value="1">
-      {{ _('Text-to-speech (if supported)') }}
+      {{ _('TTS - Send the notification using text-to-speech.') }}
     </label>
   </div>
 
