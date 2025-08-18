@@ -1,0 +1,202 @@
+{% extends "layout.html" %}
+
+{% block header %}
+<script>
+  function show(el){ el && (el.style.display = 'block'); }
+  function hide(el){ el && (el.style.display = 'none'); }
+
+  function openAddAgentModal(){ show(document.getElementById('modal-add-agent')); }
+  function closeAddAgentModal(){ hide(document.getElementById('modal-add-agent')); }
+  function closeConfigModal(){ hide(document.getElementById('modal-config')); }
+
+  async function chooseAgentType(type){
+    closeAddAgentModal();
+    await loadProviderModal(type, {});
+  }
+
+  function openAgentFromEl(el){
+    const agent = JSON.parse(el.dataset.agent);
+    const type  = el.dataset.type;
+    loadProviderModal(type, agent);
+  }
+
+  const MODAL_URL_TEMPLATE = "{{ url_for('notifications.notifications_provider_modal', provider='__PROV__') }}";
+
+  async function loadProviderModal(provider, agent){
+    const modal = document.getElementById('modal-config');
+    const body  = modal.querySelector('.modal-body');
+    body.innerHTML = '<p>Loading…</p>';
+    show(modal);
+    try {
+      const url = MODAL_URL_TEMPLATE.replace('__PROV__', provider);
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(res.statusText);
+      body.innerHTML = await res.text();
+
+      for (const [k,v] of Object.entries(agent || {})) {
+        const el = body.querySelector(`[name="${provider}_${k}"]`);
+        if (!el) continue;
+        if (el.type === 'checkbox') {
+          el.checked = !!v;
+        } else {
+          el.value = v;
+        }
+      }
+
+      modal.dataset.provider = provider;
+      modal.dataset.agentId  = agent.id || '';
+    } catch (e) {
+      body.innerHTML = `<p style="color:red;">Failed to load modal: ${e}</p>`;
+    }
+  }
+
+  async function saveAgent(){
+    const modal = document.getElementById('modal-config');
+    const provider = modal.dataset.provider;
+    const agentId  = modal.dataset.agentId;
+    const body = modal.querySelector('.modal-body');
+
+    const payload = { type: provider, id: agentId || null };
+    body.querySelectorAll('[name^="'+provider+'_"]').forEach(el => {
+      payload[el.name] = (el.type === 'checkbox') ? (el.checked ? 1 : 0) : el.value;
+    });
+
+    const trigEls = body.querySelectorAll('[name="'+provider+'_trigger"]:checked');
+    if (trigEls.length){
+      payload.enabled_triggers = Array.from(trigEls).map(e => e.value);
+    }
+
+    const res = await fetch("{{ url_for('notifications.notifications_save') }}", {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const j = await res.json();
+    if (!res.ok || !j.ok) { alert(j.error || 'Save failed'); return; }
+    closeConfigModal();
+    location.reload();
+  }
+
+  async function testAgent(){
+    const modal = document.getElementById('modal-config');
+    const provider = modal.dataset.provider;
+    const body = modal.querySelector('.modal-body');
+
+    const webhookEl = body.querySelector(`[name="${provider}_hook"], [name="${provider}_webhook"]`);
+    const webhook = webhookEl ? webhookEl.value : null;
+    if (!webhook) { alert('Webhook/endpoint required'); return; }
+
+    const res = await fetch("{{ url_for('notifications.notifications_test') }}", {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json' },
+      body: JSON.stringify({ type:provider, webhook })
+    });
+    const j = await res.json();
+    if (!res.ok || !j.ok) { alert(j.error || 'Test failed'); return; }
+    alert('Test sent!');
+  }
+
+  async function deleteAgent(id){
+    if (!confirm('Delete this agent?')) return;
+    const res = await fetch("{{ url_for('notifications.notifications_delete') }}", {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json' },
+      body: JSON.stringify({ id })
+    });
+    const j = await res.json();
+    if (!res.ok || !j.ok) { alert(j.error || 'Delete failed'); return; }
+    location.reload();
+  }
+
+  // Expose for inline onclick (SES environments)
+  window.openAddAgentModal = openAddAgentModal;
+  window.closeAddAgentModal = closeAddAgentModal;
+  window.closeConfigModal   = closeConfigModal;
+  window.chooseAgentType    = chooseAgentType;
+  window.openAgentFromEl    = openAgentFromEl;
+  window.loadProviderModal  = loadProviderModal;
+  window.saveAgent          = saveAgent;
+  window.testAgent          = testAgent;
+  window.deleteAgent        = deleteAgent;
+</script>
+
+<style>
+  .modal { position: fixed; left: 50%; top: 15%; transform: translateX(-50%); width: 640px; background: var(--background-primary,#1b1d1f); border: 1px solid #333; color: inherit; z-index: 1000; }
+  .modal-header, .modal-footer { padding: .8rem 1rem; border-bottom: 1px solid #333; }
+  .modal-footer { border-top: 1px solid #333; border-bottom:none; text-align:right; }
+  .modal-body { padding:1rem; max-height:65vh; overflow:auto; }
+  .modal .close { float:right; font-size:21px; background:none; border:0; }
+  .modal-option { padding:.6rem .4rem; border-bottom:1px solid #2a2d31; cursor:pointer; }
+  .modal-option:hover { background:#2a2d31; }
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="discover">
+  <h2>{{ title }}</h2>
+
+  <div class="settings-container">
+    <h4 class="settings-section-header">{{ _('Notification Agents') }}</h4>
+    <p class="cwa-settings-explanation">
+      {{ _('Add a new notification agent, or configure an existing one by clicking it below.') }}
+    </p>
+
+    <table class="table" style="width:100%; margin-top:.75rem;">
+      <thead>
+        <tr>
+          <th style="width:30%;">{{ _('Agent') }}</th>
+          <th style="width:25%;">{{ _('Type') }}</th>
+          <th style="width:20%; text-align:right;">{{ _('Actions') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in notification_agents %}
+          <tr data-agent-id="{{ a.id }}" data-type="{{ a.type }}" data-agent='{{ a|tojson|safe }}' onclick="openAgentFromEl(this)" style="cursor:pointer;">
+            <td><span style="margin-right:.4rem;">🔔</span> {{ a.name or a.type|capitalize }}</td>
+            <td style="text-transform:capitalize;">{{ a.type }}</td>
+            <td style="text-align:right;">
+              <button type="button" onclick="event.stopPropagation(); openAgentFromEl(this.closest('tr'));">{{ _('Edit') }}</button>
+              <button type="button" style="margin-left:.4rem;" onclick="event.stopPropagation(); deleteAgent({{ a.id }});">{{ _('Delete') }}</button>
+            </td>
+          </tr>
+        {% endfor %}
+        <tr>
+          <td colspan="3" style="cursor:pointer; color: var(--color-secondary);" onclick="openAddAgentModal()">
+            <span style="margin-right:.4rem;">➕</span>{{ _('Add a new notification agent') }}
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div id="modal-add-agent" class="modal" style="display:none;">
+    <div class="modal-header">
+      <button type="button" class="close" onclick="closeAddAgentModal()">×</button>
+      <h3>{{ _('Add a Notification Agent') }}</h3>
+    </div>
+    <div class="modal-body">
+      <ul class="list-unstyled" style="margin:0;">
+        {% for p in available_providers %}
+          <li class="modal-option" onclick="chooseAgentType('{{ p }}')">{{ p|capitalize }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    <div class="modal-footer">
+      <button onclick="closeAddAgentModal()">{{ _('Cancel') }}</button>
+    </div>
+  </div>
+
+  <div id="modal-config" class="modal" style="display:none;">
+    <div class="modal-header">
+      <button type="button" class="close" onclick="closeConfigModal()">×</button>
+      <h3>{{ _('Agent Settings') }}</h3>
+    </div>
+    <div class="modal-body"><!-- filled dynamically --></div>
+    <div class="modal-footer">
+      <button onclick="closeConfigModal()">{{ _('Cancel') }}</button>
+      <button onclick="testAgent()">{{ _('Test') }}</button>
+      <button onclick="saveAgent()">{{ _('Save') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}

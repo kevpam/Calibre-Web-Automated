@@ -1,0 +1,56 @@
+{% macro render_field(opt, provider) -%}
+  {% set it=(opt.get('input_type') or 'text')|lower %}
+  {% set name=opt.get('name') %}{% set label=opt.get('label') or name %}
+  {% set desc=opt.get('description') %}{% set val=opt.get('value') %}
+  <div class="form-group" style="margin-bottom:12px;">
+  {% if it in ['text','url','number','password','color','email'] %}
+    <label for="{{ name }}">{{ label }}</label>
+    <input type="{{ it }}" id="{{ name }}" name="{{ name }}" value="{{ val if val is not none else '' }}" class="form-control" style="width:100%;padding:8px;border:1px solid #333;border-radius:6px;background:transparent;color:inherit;">
+    {% if desc %}<p class="cwa-settings-tooltip" style="opacity:.75;margin:.25rem 0 0;">{{ desc }}</p>{% endif %}
+  {% elif it == 'textarea' %}
+    <label for="{{ name }}">{{ label }}</label>
+    <textarea id="{{ name }}" name="{{ name }}" rows="{{ opt.get('rows',3) }}" class="form-control" style="width:100%;padding:8px;border:1px solid #333;border-radius:6px;background:transparent;color:inherit;">{{ val if val is not none else '' }}</textarea>
+    {% if desc %}<p class="cwa-settings-tooltip" style="opacity:.75;margin:.25rem 0 0;">{{ desc }}</p>{% endif %}
+  {% elif it == 'select' %}
+    <label for="{{ name }}">{{ label }}</label>
+    <select id="{{ name }}" name="{{ name }}" class="form-control" style="width:100%;padding:8px;border:1px solid #333;border-radius:6px;background:transparent;color:inherit;">
+      {% for c in opt.get('choices', []) %}
+        {% if c is string %}<option value="{{ c }}" {% if c==val %}selected{% endif %}>{{ c }}</option>
+        {% else %}<option value="{{ c[0] }}" {% if c[0]==val %}selected{% endif %}>{{ c[1] }}</option>{% endif %}
+      {% endfor %}
+    </select>
+    {% if desc %}<p class="cwa-settings-tooltip" style="opacity:.75;margin:.25rem 0 0;">{{ desc }}</p>{% endif %}
+  {% elif it == 'checkbox' %}
+    <label style="display:flex;align-items:center;gap:8px;">
+      <input type="checkbox" id="{{ name }}" name="{{ name }}" {% if val in (1,True,'1','true','on','yes') %}checked{% endif %}>
+      <span style="font-weight:600;">{{ label }}</span>
+    </label>
+    {% if desc %}<p class="cwa-settings-tooltip" style="opacity:.75;margin:.25rem 0 0 26px;">{{ desc }}</p>{% endif %}
+  {% else %}
+    <label for="{{ name }}">{{ label }}</label>
+    <input type="text" id="{{ name }}" name="{{ name }}" value="{{ val if val is not none else '' }}" class="form-control" style="width:100%;padding:8px;border:1px solid #333;border-radius:6px;background:transparent;color:inherit;">
+    {% if desc %}<p class="cwa-settings-tooltip" style="opacity:.75;margin:.25rem 0 0;">{{ desc }}</p>{% endif %}
+  {% endif %}
+  </div>
+{%- endmacro %}
+
+<input type="hidden" name="{{ provider }}_id" value="">
+{% for opt in options %}{{ render_field(opt, provider) }}{% endfor %}
+
+<hr class="settings-divider" style="border-color:#333;">
+<h5 class="settings-section-header" style="margin-top:.8rem;">{{ _('Triggers') }}</h5>
+<div>
+  {% for t in notification_triggers %}
+    <label style="display:block; margin-bottom:.4rem;">
+      <input type="checkbox" name="{{ provider }}_trigger" value="{{ t.key }}" style="accent-color: var(--color-secondary);">
+      <span style="padding-left:.4rem;">{{ t.label }}</span>
+    </label>
+  {% endfor %}
+</div>
+
+<hr class="settings-divider" style="border-color:#333;">
+<div>
+  <label class="control-label">{{ _('Test Notification') }}</label>
+  <button type="button" class="btn btn-default" style="margin-left:.6rem;" onclick="testAgent()">{{ _('Send Test') }}</button>
+  <p style="opacity:.75;margin-top:.4rem;">{{ _("Note: tests use whichever webhook/endpoint you set above.") }}</p>
+</div>
